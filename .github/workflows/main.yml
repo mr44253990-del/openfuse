@@ -41,6 +41,10 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # `tools` is deprecated and is no longer available from the SDK repository.
+          # Explicitly install supported SDK packages instead of the action's legacy default.
+          packages: platform-tools
 
       - name: Install Dependencies
         run: |
@@ -98,4 +102,3 @@ jobs:
           files: release/OpenFuse-Android.apk
           fail_on_unmatched_files: true
           make_latest: true
-          
