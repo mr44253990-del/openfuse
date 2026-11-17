@@ -1,0 +1,105 @@
+
+name: OpenFuse Android APK Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "apps/mobile/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".github/workflows/android-apk-release.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android:
+    name: Build OpenFuse Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Android Project
+        run: pnpm --dir apps/mobile exec expo prebuild --platform android
+
+      - name: Build APK
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Prepare APK
+        run: |
+          mkdir -p release
+          cp apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk \
+             release/OpenFuse-Android.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenFuse-Android-APK
+          path: release/OpenFuse-Android.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-${{ github.run_number }}
+          name: OpenFuse Android Build ${{ github.run_number }}
+          body: |
+            ## OpenFuse Android APK
+
+            Automatically built from the latest source code.
+
+            - Platform: Android
+            - Build: Debug (installable)
+            - Architecture: Universal APK
+            - Source: apps/mobile
+
+            Download OpenFuse-Android.apk below.
+
+          files: release/OpenFuse-Android.apk
+          make_latest: true
+          fail_on_unmatched_files: true
